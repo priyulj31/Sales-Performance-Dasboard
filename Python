@@ -1,1 +1,106 @@
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+from dash import Dash, dcc, html, Input, Output
+
+# Load the data
+# Replace 'ecommerce_data.csv' with your dataset file
+data = pd.read_csv("ecommerce_data.csv")
+
+# Initialize the Dash app
+app = Dash(__name__)
+
+# Layout of the dashboard
+app.layout = html.Div([
+    html.H1("Ecommerce Sales Performance Dashboard", style={'text-align': 'center'}),
+    
+    # Filters
+    html.Div([
+        html.Label("Select Quarter:"),
+        dcc.Dropdown(
+            id="quarter_filter",
+            options=[{"label": f"Q{q}", "value": q} for q in data["Quarter"].unique()],
+            value=None,
+            multi=False,
+            placeholder="Select a Quarter"
+        ),
+        html.Label("Select City:"),
+        dcc.Dropdown(
+            id="city_filter",
+            options=[{"label": city, "value": city} for city in data["City"].unique()],
+            value=None,
+            multi=False,
+            placeholder="Select a City"
+        ),
+    ], style={'display': 'flex', 'gap': '20px', 'margin-bottom': '20px'}),
+    
+    # KPIs
+    html.Div([
+        html.Div(id="kpi_total_amount", style={'display': 'inline-block', 'width': '30%', 'text-align': 'center'}),
+        html.Div(id="kpi_total_profit", style={'display': 'inline-block', 'width': '30%', 'text-align': 'center'}),
+        html.Div(id="kpi_total_quantity", style={'display': 'inline-block', 'width': '30%', 'text-align': 'center'}),
+    ], style={'margin-bottom': '20px'}),
+    
+    # Visualizations
+    dcc.Graph(id="state_amount_chart"),
+    dcc.Graph(id="category_quantity_chart"),
+    dcc.Graph(id="payment_mode_chart"),
+    dcc.Graph(id="profit_month_chart"),
+    dcc.Graph(id="customer_amount_chart"),
+    dcc.Graph(id="subcategory_profit_chart")
+])
+
+# Callback to update visuals based on filters
+@app.callback(
+    [
+        Output("kpi_total_amount", "children"),
+        Output("kpi_total_profit", "children"),
+        Output("kpi_total_quantity", "children"),
+        Output("state_amount_chart", "figure"),
+        Output("category_quantity_chart", "figure"),
+        Output("payment_mode_chart", "figure"),
+        Output("profit_month_chart", "figure"),
+        Output("customer_amount_chart", "figure"),
+        Output("subcategory_profit_chart", "figure"),
+    ],
+    [Input("quarter_filter", "value"),
+     Input("city_filter", "value")]
+)
+def update_dashboard(selected_quarter, selected_city):
+    # Filter data based on selections
+    filtered_data = data.copy()
+    if selected_quarter:
+        filtered_data = filtered_data[filtered_data["Quarter"] == selected_quarter]
+    if selected_city:
+        filtered_data = filtered_data[filtered_data["City"] == selected_city]
+    
+    # KPIs
+    total_amount = f"Total Amount: ₹{filtered_data['Amount'].sum():,.0f}"
+    total_profit = f"Total Profit: ₹{filtered_data['Profit'].sum():,.0f}"
+    total_quantity = f"Total Quantity: {filtered_data['Quantity'].sum():,.0f}"
+    
+    # Visualizations
+    fig_state = px.bar(filtered_data.groupby("State")["Amount"].sum().reset_index(),
+                       x="State", y="Amount", title="Sum of Amount by State")
+    
+    fig_category = px.pie(filtered_data.groupby("Category")["Quantity"].sum().reset_index(),
+                          names="Category", values="Quantity", title="Sum of Quantity by Category")
+    
+    fig_payment = px.pie(filtered_data.groupby("PaymentMode")["Quantity"].sum().reset_index(),
+                         names="PaymentMode", values="Quantity", title="Sum of Quantity by Payment Mode")
+    
+    fig_month = px.bar(filtered_data.groupby("Month")["Profit"].sum().reset_index(),
+                       x="Month", y="Profit", title="Profit by Month")
+    
+    fig_customer = px.bar(filtered_data.groupby("CustomerName")["Amount"].sum().reset_index(),
+                          x="CustomerName", y="Amount", title="Sum of Amount by Customer Name")
+    
+    fig_subcategory = px.bar(filtered_data.groupby("SubCategory")["Profit"].sum().reset_index(),
+                             x="Profit", y="SubCategory", title="Sum of Profit by Sub-Category", orientation='h')
+    
+    return total_amount, total_profit, total_quantity, fig_state, fig_category, fig_payment, fig_month, fig_customer, fig_subcategory
+
+# Run the app
+if __name__ == "__main__":
+    app.run_server(debug=True)
 

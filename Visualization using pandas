@@ -1,0 +1,98 @@
+import pandas as pd
+import dash
+from dash import dcc, html, Input, Output
+import plotly.express as px
+
+# Sample data (replace with your own CSV/Excel)
+df = pd.DataFrame({
+    'Date': pd.date_range(start='2024-01-01', periods=100, freq='D'),
+    'Region': ['North', 'South', 'East', 'West'] * 25,
+    'Salesperson': ['Alice', 'Bob', 'Charlie', 'David'] * 25,
+    'Product': ['A', 'B', 'C', 'D'] * 25,
+    'Sales': [x * 100 for x in range(1, 101)]
+})
+
+# App init
+app = dash.Dash(__name__)
+app.title = "Sales Performance Dashboard"
+
+# Layout
+app.layout = html.Div([
+    html.H1("Sales Performance Dashboard", style={'textAlign': 'center'}),
+
+    # Filters
+    html.Div([
+        dcc.Dropdown(
+            id='region-filter',
+            options=[{'label': r, 'value': r} for r in df['Region'].unique()],
+            value=None,
+            placeholder='Filter by Region',
+            style={'width': '30%', 'display': 'inline-block', 'margin-right': '10px'}
+        ),
+        dcc.Dropdown(
+            id='salesperson-filter',
+            options=[{'label': s, 'value': s} for s in df['Salesperson'].unique()],
+            value=None,
+            placeholder='Filter by Salesperson',
+            style={'width': '30%', 'display': 'inline-block', 'margin-right': '10px'}
+        ),
+        dcc.Dropdown(
+            id='product-filter',
+            options=[{'label': p, 'value': p} for p in df['Product'].unique()],
+            value=None,
+            placeholder='Filter by Product',
+            style={'width': '30%', 'display': 'inline-block'}
+        )
+    ], style={'margin-bottom': '20px'}),
+
+    # KPI Cards
+    html.Div(id='kpi-cards', style={'display': 'flex', 'justifyContent': 'space-around'}),
+
+    # Graphs
+    dcc.Graph(id='sales-by-region'),
+    dcc.Graph(id='sales-trend')
+])
+
+# Callback for KPI + Graphs
+@app.callback(
+    Output('kpi-cards', 'children'),
+    Output('sales-by-region', 'figure'),
+    Output('sales-trend', 'figure'),
+    Input('region-filter', 'value'),
+    Input('salesperson-filter', 'value'),
+    Input('product-filter', 'value')
+)
+def update_dashboard(region, salesperson, product):
+    # Filter data
+    dff = df.copy()
+    if region:
+        dff = dff[dff['Region'] == region]
+    if salesperson:
+        dff = dff[dff['Salesperson'] == salesperson]
+    if product:
+        dff = dff[dff['Product'] == product]
+
+    # KPI values
+    total_sales = dff['Sales'].sum()
+    avg_sales = dff['Sales'].mean() if not dff.empty else 0
+    top_salesperson = dff.groupby('Salesperson')['Sales'].sum().idxmax() if not dff.empty else 'N/A'
+
+    # KPI Cards
+    cards = [
+        html.Div([html.H4("Total Sales"), html.P(f"${total_sales:,.2f}")], className='card'),
+        html.Div([html.H4("Average Sale"), html.P(f"${avg_sales:,.2f}")], className='card'),
+        html.Div([html.H4("Top Salesperson"), html.P(top_salesperson)], className='card')
+    ]
+
+    # Charts
+    region_fig = px.bar(
+        dff.groupby('Region')['Sales'].sum().reset_index(),
+        x='Region', y='Sales', title='Sales by Region'
+    )
+    trend_fig = px.line(dff, x='Date', y='Sales', title='Sales Trend')
+
+    return cards, region_fig, trend_fig
+
+# Run server
+if __name__ == '__main__':
+    app.run_server(debug=True)
